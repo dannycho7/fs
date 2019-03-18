@@ -188,7 +188,7 @@ int fs_delete(char* name) {
 	if (file_i == -1)
 		return -1;
 	for (int i = 0; i < NFILE_DESCRIPTOR_MAX; i++) {
-		if (strcmp(fildes_arr[i].name, name) == 0)
+		if (fildes_arr[i].valid == 0 && strcmp(fildes_arr[i].name, name) == 0)
 			return -1;
 	}
 	if (root_dir.files[file_i].size == 0)
