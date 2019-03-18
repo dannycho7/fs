@@ -46,14 +46,19 @@ static struct FD_Entry fildes_arr[NFILE_DESCRIPTOR_MAX];
 static int batch_block_write(int block_start, char* buf, size_t size, int (*get_next_block)(int)) {
 	int block = block_start;
 	int nbytes_written = 0;
+	char* tmp_buf = malloc(BLOCK_SIZE);
 	while (nbytes_written != size) {
-		if (block_write(block, buf) == -1)
-			break;
 		int needed = (size - nbytes_written > BLOCK_SIZE) ? BLOCK_SIZE : size - nbytes_written;
+		if (block_read(block, tmp_buf) == -1)
+			break;
+		memcpy(tmp_buf, buf, needed);
+		if (block_write(block, tmp_buf) == -1)
+			break;
 		buf += needed;
 		nbytes_written += needed;
 		block = get_next_block(block);
 	}
+	free(tmp_buf);
 	return nbytes_written;
 }
 
@@ -255,7 +260,33 @@ int fs_read(int fildes, void* buf, size_t nbyte) {
 	return bytes_read;
 }
 
-int fs_write(int fildes, void* buf, size_t nbyte);
+int fs_write(int fildes, void* buf, size_t nbyte) {
+	if (fildes_arr[fildes].valid == -1)
+		return -1;
+	if (nbyte == 0)
+		return 0;
+	size_t extra_to_write = fildes_arr[fildes].offset % BLOCK_SIZE;
+	size_t bytes_to_write = nbyte + extra_to_write;
+
+	void* tmp_buf = malloc(bytes_to_write);
+	int file_i = fs_find_file(fildes_arr[fildes].name);
+	if (root_dir.files[file_i].size == 0)
+		root_dir.files[file_i].data_block_i = fat_next_alloc(-1);
+	int block_i = fildes_get_block_i(fildes, root_dir.files[file_i]);
+	if (block_i == -1)
+		return -1; // TODO: What happens ...? invalid fildes
+	if (block_read(block_i, tmp_buf) == -1)
+		return 0;
+	memcpy(tmp_buf + extra_to_write, buf, nbyte);
+
+	int bytes_written = batch_block_write(block_i, tmp_buf, bytes_to_write, fat_next_alloc);
+	bytes_written -= extra_to_write;
+	free(tmp_buf);
+	root_dir.files[file_i].size += bytes_written;
+	fildes_arr[fildes].offset += bytes_written;
+	return bytes_written;
+}
+
 int fs_get_filesize(int fildes);
 int fs_lseek(int fildes, off_t offset);
 int fs_truncate(int fildes, off_t length);
