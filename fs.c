@@ -43,6 +43,9 @@ struct FD_Entry {
 };
 static struct FD_Entry fildes_arr[NFILE_DESCRIPTOR_MAX];
 
+static int min(int a, int b) { return a <= b ? a : b; }
+static int max(int a, int b) { return a >= b ? a : b; }
+
 static int batch_block_write(int block_start, char* buf, size_t size, int (*get_next_block)(int)) {
 	int block = block_start;
 	int nbytes_written = 0;
@@ -50,7 +53,7 @@ static int batch_block_write(int block_start, char* buf, size_t size, int (*get_
 	while (nbytes_written != size) {
 		if (nbytes_written != 0)
 			block = get_next_block(block);
-		int needed = (size - nbytes_written > BLOCK_SIZE) ? BLOCK_SIZE : size - nbytes_written;
+		int needed = min(size - nbytes_written, BLOCK_SIZE);
 		if (block < 0 || block_read(block, tmp_buf) == -1)
 			break;
 		memcpy(tmp_buf, buf, needed);
@@ -72,7 +75,7 @@ static int batch_block_read(int block_start, char* buf, size_t size, int (*get_n
 			block = get_next_block(block);
 		if (block < 0 || block_read(block, tmp_buf) == -1)
 			break;
-		int needed = (size - nbytes_read > BLOCK_SIZE) ? BLOCK_SIZE : size - nbytes_read;
+		int needed = min(size - nbytes_read, BLOCK_SIZE);
 		memcpy(buf, tmp_buf, needed);
 		buf += needed;
 		nbytes_read += needed;
@@ -248,10 +251,6 @@ static int fildes_get_block_i(int fildes, struct FileMetadata fm) {
 	return block_i;
 }
 
-static int min(int a, int b) { return a <= b ? a : b; }
-
-static int max(int a, int b) { return a >= b ? a : b; }
-
 int fs_read(int fildes, void* buf, size_t nbyte) {
 	if (fildes_arr[fildes].valid == -1)
 		return -1;
@@ -277,7 +276,6 @@ int fs_write(int fildes, void* buf, size_t nbyte) {
 	size_t extra_to_write = fildes_arr[fildes].offset % BLOCK_SIZE;
 	size_t bytes_to_write = nbyte + extra_to_write;
 
-	void* tmp_buf = malloc(max(bytes_to_write, BLOCK_SIZE));
 	int file_i = fs_find_file(fildes_arr[fildes].name);
 	int block_i;
 	if (fs_get_filesize(fildes) == 0) {
@@ -285,8 +283,11 @@ int fs_write(int fildes, void* buf, size_t nbyte) {
 		root_dir.files[file_i].data_block_i = block_i - sblock.data_block_start;
 	} else if ((block_i = fildes_get_block_i(fildes, root_dir.files[file_i])) == -1)
 		return -1; // TODO: What happens ...? invalid fildes
-	if (block_read(block_i, tmp_buf) == -1)
+	void* tmp_buf = malloc(max(bytes_to_write, BLOCK_SIZE));
+	if (block_read(block_i, tmp_buf) == -1) {
+		free(tmp_buf);
 		return 0;
+	}
 	memcpy(tmp_buf + extra_to_write, buf, nbyte);
 	
 	int bytes_written = batch_block_write(block_i, tmp_buf, bytes_to_write, fat_next_alloc);
