@@ -170,7 +170,7 @@ static int strlen_valid(char* name) {
 }
 
 int fs_create(char* name) {
-	if (strlen_valid(name) == -1 || fs_find_file(name) == -1)
+	if (strlen_valid(name) == -1 || fs_find_file(name) != -1)
 		return -1;
 	for (int i = 0; i < FILE_MAX; i++) {
 		if (root_dir.files[i].valid == -1) {
