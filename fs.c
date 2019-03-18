@@ -230,7 +230,7 @@ static int fat_next_alloc(int block_i) {
 
 static int fildes_get_block_i(int fildes, struct FileMetadata fm) {
 	int offset = fildes_arr[fildes].offset;
-	if (fm.size == 0)
+	if (fs_get_filesize(fildes) == 0)
 		return -1;
 	int block_i = fm.data_block_i + sblock.data_block_start;
 	while (offset >= BLOCK_SIZE) {
@@ -247,7 +247,7 @@ int fs_read(int fildes, void* buf, size_t nbyte) {
 	if (fildes_arr[fildes].valid == -1)
 		return -1;
 	struct FileMetadata fm = root_dir.files[fs_find_file(fildes_arr[fildes].name)];
-	if (fildes_arr[fildes].offset > fm.size)
+	if (fildes_arr[fildes].offset > fs_get_filesize(fildes))
 		return 0;
 	size_t extra_to_read = fildes_arr[fildes].offset % BLOCK_SIZE;
 	size_t bytes_to_read = nbyte + extra_to_read;
@@ -270,7 +270,7 @@ int fs_write(int fildes, void* buf, size_t nbyte) {
 
 	void* tmp_buf = malloc(bytes_to_write);
 	int file_i = fs_find_file(fildes_arr[fildes].name);
-	if (root_dir.files[file_i].size == 0)
+	if (fs_get_filesize(fildes) == 0)
 		root_dir.files[file_i].data_block_i = fat_next_alloc(-1);
 	int block_i = fildes_get_block_i(fildes, root_dir.files[file_i]);
 	if (block_i == -1)
@@ -287,6 +287,11 @@ int fs_write(int fildes, void* buf, size_t nbyte) {
 	return bytes_written;
 }
 
-int fs_get_filesize(int fildes);
+int fs_get_filesize(int fildes) {
+	if (fildes_arr[fildes].valid == -1)
+		return -1;
+	return root_dir.files[fs_find_file(fildes_arr[fildes].name)].size;
+}
+
 int fs_lseek(int fildes, off_t offset);
 int fs_truncate(int fildes, off_t length);
