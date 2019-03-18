@@ -300,4 +300,21 @@ int fs_lseek(int fildes, off_t offset) {
 	return 0;
 }
 
-int fs_truncate(int fildes, off_t length);
+int fs_truncate(int fildes, off_t length) {
+	if (fildes_arr[fildes].valid == -1 || length > fs_get_filesize(fildes) || length < 0)
+		return -1;
+	int file_i = fs_find_file(fildes_arr[fildes].name);
+	int del_block_offset = get_nblocks(length) + 1;
+	int curr_block_offset = 1;
+	int curr_block = root_dir.files[file_i].data_block_i;
+
+	while (curr_block != DATA_BLOCKS) {
+		int next_block = fat[curr_block];
+		if (curr_block_offset <= del_block_offset)
+			fat[curr_block] = -1;
+		curr_block = next_block;
+		curr_block_offset += 1;
+	}
+	root_dir.files[file_i].size = length;
+	return 0;
+}
