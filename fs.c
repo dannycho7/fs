@@ -1,4 +1,5 @@
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 #include "disk.h"
 #include "fs.h"
@@ -48,9 +49,29 @@ static int batch_block_write(int block_start, char* buf, size_t size, int (*get_
 	return nbytes_written;
 }
 
+static int batch_block_read(int block_start, char* buf, size_t size, int (*get_next_block)(int)) {
+	int block = block_start;
+	int nbytes_read = 0;
+	char* tmp_buf = (char*) malloc(BLOCK_SIZE);
+	while (nbytes_read != size) {
+		if (block_read(block, tmp_buf) == -1)
+			break;
+		int needed = (size - nbytes_read > BLOCK_SIZE) ? BLOCK_SIZE : size - nbytes_read;
+		memcpy(buf, tmp_buf, needed);
+		buf += needed;
+		nbytes_read += needed;
+		block = get_next_block(block);
+	}
+	free(tmp_buf);
+	return nbytes_read;
+}
+
 static int incr(int x) { return x + 1; }
 static int write_metadata(int block_start, char* buf, size_t size) {
 	return batch_block_write(block_start, buf, size, incr);
+}
+static int read_metadata(int block_start, char* buf, size_t size) {
+	return batch_block_read(block_start, buf, size, incr);
 }
 
 int make_fs(char* disk_name) {
@@ -78,14 +99,21 @@ int make_fs(char* disk_name) {
 	return 0;
 }
 
-int mount_fs(char* disk_name);
+int mount_fs(char* disk_name) {
+	if (open_disk(disk_name) == -1 ||
+		read_metadata(0, (char*) (&sblock), sizeof(sblock)) != sizeof(sblock) ||
+		read_metadata(sblock.fat_start, (char*) (&fat), sizeof(fat)) != sizeof(fat) ||
+		read_metadata(sblock.root_dir_start, (char*) (&root_dir), sizeof(root_dir)) != sizeof(root_dir))
+		return -1;
+	return 0;
+}
+
 int umount_fs(char* disk_name) {
 	if (write_metadata(0, (char*) (&sblock), sizeof(sblock)) != sizeof(sblock) ||
 		write_metadata(sblock.fat_start, (char*) (&fat), sizeof(fat)) != sizeof(fat) ||
 		write_metadata(sblock.root_dir_start, (char*) (&root_dir), sizeof(root_dir)) != sizeof(root_dir) ||
 		close_disk() == -1)
 		return -1;
-
 	return 0;
 }
 
