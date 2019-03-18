@@ -268,6 +268,20 @@ int fs_read(int fildes, void* buf, size_t nbyte) {
 	return bytes_read;
 }
 
+static int get_nblock_size(int file_i) {
+	if (file_i < 0 || file_i > FILE_NAME_MAX)
+		return -1;
+	if (root_dir.files[file_i].valid == -1)
+		return 0;
+	int curr_block = root_dir.files[file_i].data_block_i;
+	int nblocks = 1;
+	while (curr_block != DATA_BLOCKS) {
+		nblocks++;
+		curr_block = fat[curr_block];
+	}
+	return nblocks * BLOCK_SIZE;
+}
+
 int fs_write(int fildes, void* buf, size_t nbyte) {
 	if (fildes_arr[fildes].valid == -1)
 		return -1;
@@ -281,8 +295,10 @@ int fs_write(int fildes, void* buf, size_t nbyte) {
 	if (fs_get_filesize(fildes) == 0) {
 		block_i = fat_next_alloc(-1);
 		root_dir.files[file_i].data_block_i = block_i - sblock.data_block_start;
-	} else if ((block_i = fildes_get_block_i(fildes, root_dir.files[file_i])) == -1)
-		return -1; // TODO: What happens ...? invalid fildes
+	} else if ((block_i = fildes_get_block_i(fildes, root_dir.files[file_i])) == -1) {
+		root_dir.files[file_i].size = get_nblock_size(file_i);
+		return 0; // there was not enough memory for the holes
+	}
 	void* tmp_buf = malloc(max(bytes_to_write, BLOCK_SIZE));
 	if (block_read(block_i, tmp_buf) == -1) {
 		free(tmp_buf);
@@ -293,8 +309,8 @@ int fs_write(int fildes, void* buf, size_t nbyte) {
 	int bytes_written = batch_block_write(block_i, tmp_buf, bytes_to_write, fat_next_alloc);
 	bytes_written -= extra_to_write;
 	free(tmp_buf);
-	root_dir.files[file_i].size += bytes_written;
 	fildes_arr[fildes].offset += bytes_written;
+	root_dir.files[file_i].size += fildes_arr[fildes].offset;
 	return bytes_written;
 }
 
