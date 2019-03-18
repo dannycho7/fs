@@ -145,8 +145,60 @@ int fs_close(int fildes) {
 	fildes_arr[fildes].valid = -1;
 	return 0;
 }
-int fs_create(char* name);
-int fs_delete(char* name);
+
+static int fs_find_file(char* name) {
+	for (int i = 0; i < FILE_MAX; i++) {
+		if (root_dir.files[i].valid == 0 && strcmp(root_dir.files[i].name, name) == 0) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+// return: -1 if invalid length and 0 if valid
+static int strlen_valid(char* name) {
+	for (int i = 0; i < FILE_NAME_MAX + 1; i++) {
+		if (name[i] == '\0')
+			return 1;
+	}
+	return -1;
+}
+
+int fs_create(char* name) {
+	if (strlen_valid(name) == -1 || fs_find_file(name) == -1)
+		return -1;
+	for (int i = 0; i < FILE_MAX; i++) {
+		if (root_dir.files[i].valid == -1) {
+			strcpy(root_dir.files[i].name, name);
+			root_dir.files[i].size = 0;
+			root_dir.files[i].valid = 0;
+			return 0;
+		}
+	}
+	return -1;
+}
+
+int fs_delete(char* name) {
+	int file_i = fs_find_file(name);
+	if (file_i == -1)
+		return -1;
+	for (int i = 0; i < NFILE_DESCRIPTOR_MAX; i++) {
+		if (strcmp(fildes_arr[i].name, name) == 0)
+			return -1;
+	}
+	if (root_dir.files[file_i].size == 0)
+		return 0;
+
+	int curr_block = root_dir.files[file_i].data_block_i;
+	while (curr_block != DATA_BLOCKS) {
+		int next_block = fat[curr_block];
+		fat[curr_block] = -1;
+		curr_block = next_block;
+	}
+
+	return 0;
+}
+
 int fs_read(int fildes, void* buf, size_t nbyte);
 int fs_write(int fildes, void* buf, size_t nbyte);
 int fs_get_filesize(int fildes);
