@@ -6,6 +6,7 @@
 #define DATA_BLOCKS 4096
 #define FILE_MAX 64
 #define FILE_NAME_MAX 15
+#define NFILE_DESCRIPTOR_MAX 32
 #define get_nblocks(obj) (int) ceil((double)(sizeof(obj))/BLOCK_SIZE)
 
 static struct SuperBlock {
@@ -34,6 +35,13 @@ struct Directory {
 };
 
 static struct Directory root_dir;
+
+struct FD_Entry {
+	char name[FILE_NAME_MAX+1];
+	int offset;
+	int valid; // 0 if invalid and 1 if valid
+};
+static struct FD_Entry fildes_arr[NFILE_DESCRIPTOR_MAX];
 
 static int batch_block_write(int block_start, char* buf, size_t size, int (*get_next_block)(int)) {
 	int block = block_start;
@@ -105,6 +113,8 @@ int mount_fs(char* disk_name) {
 		read_metadata(sblock.fat_start, (char*) (&fat), sizeof(fat)) != sizeof(fat) ||
 		read_metadata(sblock.root_dir_start, (char*) (&root_dir), sizeof(root_dir)) != sizeof(root_dir))
 		return -1;
+	for (int i = 0; i < NFILE_DESCRIPTOR_MAX; i++)
+		fildes_arr[i].valid = 0;
 	return 0;
 }
 
@@ -117,8 +127,24 @@ int umount_fs(char* disk_name) {
 	return 0;
 }
 
-int fs_open(char* name);
-int fs_close(int fildes);
+int fs_open(char* name) {
+	for (int i = 0; i < NFILE_DESCRIPTOR_MAX; i++) {
+		if (fildes_arr[i].valid == 0) {
+			strcpy(fildes_arr[i].name, name);
+			fildes_arr[i].offset = 0;
+			fildes_arr[i].valid = 1;
+			return 0;
+		}
+	}
+	return -1;
+}
+
+int fs_close(int fildes) {
+	if (fildes_arr[fildes].valid == 0)
+		return -1;
+	fildes_arr[fildes].valid = 0;
+	return 0;
+}
 int fs_create(char* name);
 int fs_delete(char* name);
 int fs_read(int fildes, void* buf, size_t nbyte);
