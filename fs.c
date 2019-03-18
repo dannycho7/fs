@@ -293,5 +293,11 @@ int fs_get_filesize(int fildes) {
 	return root_dir.files[fs_find_file(fildes_arr[fildes].name)].size;
 }
 
-int fs_lseek(int fildes, off_t offset);
+int fs_lseek(int fildes, off_t offset) {
+	if (fildes_arr[fildes].valid == -1 || offset > fs_get_filesize(fildes) || offset < 0)
+		return -1;
+	fildes_arr[fildes].offset = offset;
+	return 0;
+}
+
 int fs_truncate(int fildes, off_t length);
