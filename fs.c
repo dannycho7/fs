@@ -27,7 +27,7 @@ struct FileMetadata {
 	char name[FILE_NAME_MAX+1];
 	int data_block_i; // index of first data block
 	int size;
-	int valid; // 0 if invalid and 1 if valid
+	int valid; // -1 if invalid and 0 if valid
 };
 
 struct Directory {
@@ -39,7 +39,7 @@ static struct Directory root_dir;
 struct FD_Entry {
 	char name[FILE_NAME_MAX+1];
 	int offset;
-	int valid; // 0 if invalid and 1 if valid
+	int valid; // -1 if invalid and 0 if valid
 };
 static struct FD_Entry fildes_arr[NFILE_DESCRIPTOR_MAX];
 
@@ -94,7 +94,7 @@ int make_fs(char* disk_name) {
 	fs_sblock.root_dir_start = fs_sblock.fat_start + get_nblocks(fs_fat);
 	struct Directory fs_root_dir;
 	for (int i = 0; i < FILE_MAX; i++) {
-		fs_root_dir.files[i].valid = 0;
+		fs_root_dir.files[i].valid = -1;
 	}
 	fs_sblock.data_block_start = fs_sblock.root_dir_start + get_nblocks(fs_root_dir);
 
@@ -114,7 +114,7 @@ int mount_fs(char* disk_name) {
 		read_metadata(sblock.root_dir_start, (char*) (&root_dir), sizeof(root_dir)) != sizeof(root_dir))
 		return -1;
 	for (int i = 0; i < NFILE_DESCRIPTOR_MAX; i++)
-		fildes_arr[i].valid = 0;
+		fildes_arr[i].valid = -1;
 	return 0;
 }
 
@@ -129,10 +129,10 @@ int umount_fs(char* disk_name) {
 
 int fs_open(char* name) {
 	for (int i = 0; i < NFILE_DESCRIPTOR_MAX; i++) {
-		if (fildes_arr[i].valid == 0) {
+		if (fildes_arr[i].valid == -1) {
 			strcpy(fildes_arr[i].name, name);
 			fildes_arr[i].offset = 0;
-			fildes_arr[i].valid = 1;
+			fildes_arr[i].valid = 0;
 			return 0;
 		}
 	}
@@ -140,9 +140,9 @@ int fs_open(char* name) {
 }
 
 int fs_close(int fildes) {
-	if (fildes_arr[fildes].valid == 0)
+	if (fildes_arr[fildes].valid == -1)
 		return -1;
-	fildes_arr[fildes].valid = 0;
+	fildes_arr[fildes].valid = -1;
 	return 0;
 }
 int fs_create(char* name);
