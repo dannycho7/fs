@@ -243,14 +243,18 @@ static int fildes_get_block_i(int fildes, struct FileMetadata fm) {
 	return block_i;
 }
 
+static int min(int a, int b) {
+	return a <= b ? a : b;
+}
+
 int fs_read(int fildes, void* buf, size_t nbyte) {
 	if (fildes_arr[fildes].valid == -1)
 		return -1;
 	struct FileMetadata fm = root_dir.files[fs_find_file(fildes_arr[fildes].name)];
-	if (fildes_arr[fildes].offset > fs_get_filesize(fildes))
+	if (fildes_arr[fildes].offset >= fs_get_filesize(fildes))
 		return 0;
 	size_t extra_to_read = fildes_arr[fildes].offset % BLOCK_SIZE;
-	size_t bytes_to_read = nbyte + extra_to_read;
+	size_t bytes_to_read = min(nbyte, fm.size - fildes_arr[fildes].offset) + extra_to_read;
 	void* tmp_buf = malloc(bytes_to_read);
 	int bytes_read = batch_block_read(fildes_get_block_i(fildes, fm), tmp_buf, bytes_to_read, fat_next);
 	bytes_read -= extra_to_read;
