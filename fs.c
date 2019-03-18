@@ -188,18 +188,73 @@ int fs_delete(char* name) {
 	}
 	if (root_dir.files[file_i].size == 0)
 		return 0;
-
 	int curr_block = root_dir.files[file_i].data_block_i;
 	while (curr_block != DATA_BLOCKS) {
 		int next_block = fat[curr_block];
 		fat[curr_block] = -1;
 		curr_block = next_block;
 	}
-
 	return 0;
 }
 
-int fs_read(int fildes, void* buf, size_t nbyte);
+static int fat_next(int block_i) {
+	int data_block_i = block_i - sblock.data_block_start;
+	int next_data_block_i = fat[data_block_i];
+	if (next_data_block_i < 0 || next_data_block_i >= DATA_BLOCKS)
+		return -1;
+	return next_data_block_i + sblock.data_block_start;
+}
+
+static int fat_get_free_block() {
+	for (int i = 0; i < DATA_BLOCKS; i++) {
+		if (fat[i] == -1)
+			return i + sblock.root_dir_start;
+	}
+	return -1;
+}
+
+static int fat_next_alloc(int block_i) {
+	int free_block_i = fat_get_free_block();
+	if (free_block_i == -1)
+		return -1;
+	if (block_i != -1)
+		fat[block_i - sblock.root_dir_start] = free_block_i;
+	fat[free_block_i] = DATA_BLOCKS; // eof
+	return free_block_i;
+}
+
+static int fildes_get_block_i(int fildes, struct FileMetadata fm) {
+	int offset = fildes_arr[fildes].offset;
+	if (fm.size == 0)
+		return -1;
+	int block_i = fm.data_block_i + sblock.data_block_start;
+	while (offset >= BLOCK_SIZE) {
+		if (block_i == -1 && (block_i = fat_next_alloc(block_i)) == -1) {
+			return -1;
+		}
+		offset -= BLOCK_SIZE;
+		block_i = fat_next(block_i);
+	}
+	return block_i;
+}
+
+int fs_read(int fildes, void* buf, size_t nbyte) {
+	if (fildes_arr[fildes].valid == -1)
+		return -1;
+	struct FileMetadata fm = root_dir.files[fs_find_file(fildes_arr[fildes].name)];
+	if (fildes_arr[fildes].offset > fm.size)
+		return 0;
+	size_t extra_to_read = fildes_arr[fildes].offset % BLOCK_SIZE;
+	size_t bytes_to_read = nbyte + extra_to_read;
+	void* tmp_buf = malloc(bytes_to_read);
+	int bytes_read = batch_block_read(fildes_get_block_i(fildes, fm), tmp_buf, bytes_to_read, fat_next);
+	bytes_read -= extra_to_read;
+	memcpy(buf, tmp_buf + extra_to_read, bytes_read);
+	free(tmp_buf);
+	fildes_arr[fildes].offset += bytes_read;
+	return bytes_read;
+}
+
 int fs_write(int fildes, void* buf, size_t nbyte);
 int fs_get_filesize(int fildes);
 int fs_lseek(int fildes, off_t offset);
