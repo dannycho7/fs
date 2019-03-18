@@ -138,7 +138,7 @@ int fs_open(char* name) {
 			strcpy(fildes_arr[i].name, name);
 			fildes_arr[i].offset = 0;
 			fildes_arr[i].valid = 0;
-			return 0;
+			return i;
 		}
 	}
 	return -1;
