@@ -1,5 +1,7 @@
+*.swp
 *.o
 *.out
 .DS_Store
-proj4_example/fs1
-proj4_example/fs2
+**fs1
+**fs2
+**/*.run

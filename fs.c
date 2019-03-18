@@ -248,9 +248,9 @@ static int fildes_get_block_i(int fildes, struct FileMetadata fm) {
 	return block_i;
 }
 
-static int min(int a, int b) {
-	return a <= b ? a : b;
-}
+static int min(int a, int b) { return a <= b ? a : b; }
+
+static int max(int a, int b) { return a >= b ? a : b; }
 
 int fs_read(int fildes, void* buf, size_t nbyte) {
 	if (fildes_arr[fildes].valid == -1)
@@ -277,7 +277,7 @@ int fs_write(int fildes, void* buf, size_t nbyte) {
 	size_t extra_to_write = fildes_arr[fildes].offset % BLOCK_SIZE;
 	size_t bytes_to_write = nbyte + extra_to_write;
 
-	void* tmp_buf = malloc(bytes_to_write);
+	void* tmp_buf = malloc(max(bytes_to_write, BLOCK_SIZE));
 	int file_i = fs_find_file(fildes_arr[fildes].name);
 	int block_i;
 	if (fs_get_filesize(fildes) == 0) {
@@ -288,6 +288,7 @@ int fs_write(int fildes, void* buf, size_t nbyte) {
 	if (block_read(block_i, tmp_buf) == -1)
 		return 0;
 	memcpy(tmp_buf + extra_to_write, buf, nbyte);
+	
 	int bytes_written = batch_block_write(block_i, tmp_buf, bytes_to_write, fat_next_alloc);
 	bytes_written -= extra_to_write;
 	free(tmp_buf);
