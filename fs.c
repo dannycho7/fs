@@ -308,7 +308,7 @@ int fs_truncate(int fildes, off_t length) {
 
 	while (curr_block != DATA_BLOCKS) {
 		int next_block = fat[curr_block];
-		if (curr_block_offset <= del_block_offset)
+		if (curr_block_offset >= del_block_offset)
 			fat[curr_block] = -1;
 		curr_block = next_block;
 		curr_block_offset += 1;
