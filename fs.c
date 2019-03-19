@@ -213,11 +213,10 @@ static int fildes_get_block_i(int fildes, FileMetadata fm) {
 		return -1;
 	int block_i = fm.data_block_i + sblock.data_block_start;
 	while (offset >= BLOCK_SIZE) {
-		if (block_i == -1 && (block_i = fat_next_alloc(block_i)) == -1) {
+		if (block_i == -1)
 			return -1;
-		}
 		offset -= BLOCK_SIZE;
-		block_i = fat_next(block_i);
+		block_i = fat_next_alloc(block_i);
 	}
 	return block_i;
 }
