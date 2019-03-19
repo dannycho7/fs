@@ -5,7 +5,8 @@
 #include "fs.h"
 #include "fs_constants.h"
 #include "fs_types.h"
-#define get_nblocks(obj) (int) ceil((double)(sizeof(obj))/BLOCK_SIZE)
+#define get_nblocks(nbyte) (int) ceil((double)(nbyte)/BLOCK_SIZE)
+#define get_nblocks_obj(obj) get_nblocks(sizeof(obj))
 
 static SuperBlock sblock;
 static FAT fat;
@@ -65,17 +66,17 @@ int make_fs(char* disk_name) {
 	if (make_disk(disk_name) == -1)
 		return -1;
 	SuperBlock fs_sblock;
-	fs_sblock.fat_start = get_nblocks(fs_sblock);
+	fs_sblock.fat_start = get_nblocks_obj(fs_sblock);
 	int fs_fat[DATA_BLOCKS];
 	for (int i = 0; i < DATA_BLOCKS; i++) {
 		fs_fat[i] = -1;
 	}
-	fs_sblock.root_dir_start = fs_sblock.fat_start + get_nblocks(fs_fat);
+	fs_sblock.root_dir_start = fs_sblock.fat_start + get_nblocks_obj(fs_fat);
 	Directory fs_root_dir;
 	for (int i = 0; i < FILE_MAX; i++) {
 		fs_root_dir.files[i].valid = -1;
 	}
-	fs_sblock.data_block_start = fs_sblock.root_dir_start + get_nblocks(fs_root_dir);
+	fs_sblock.data_block_start = fs_sblock.root_dir_start + get_nblocks_obj(fs_root_dir);
 
 	if (open_disk(disk_name) == -1 ||
 		write_metadata(0, (char*) (&fs_sblock), sizeof(fs_sblock)) != sizeof(fs_sblock) ||
