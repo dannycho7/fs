@@ -281,7 +281,7 @@ int fs_write(int fildes, void* buf, size_t nbyte) {
 	bytes_written -= extra_to_write;
 	free(tmp_buf);
 	fildes_list[fildes].offset += bytes_written;
-	root_dir.files[file_i].size += fildes_list[fildes].offset;
+	root_dir.files[file_i].size = max(root_dir.files[file_i].size, fildes_list[fildes].offset);
 	return bytes_written;
 }
 
