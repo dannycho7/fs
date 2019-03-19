@@ -1,19 +1,22 @@
+CC=gcc
+CFLAGS=-lm
+
 all: disk.o basic_fs_01 basic_fs_02 basic_fs_03 basic_fs_04 basic_fs_05
 
 basic_fs_01: 
-	gcc -o basic_fs_01.run basic_fs_01.c fs.o disk.o
+	$(CC) $(CFLAGS) -o basic_fs_01.run basic_fs_01.c fs.o disk.o
 
 basic_fs_02: 
-	gcc -o basic_fs_02.run basic_fs_02.c fs.o disk.o
+	$(CC) $(CFLAGS) -o basic_fs_02.run basic_fs_02.c fs.o disk.o
 
 basic_fs_03: 
-	gcc -o basic_fs_03.run basic_fs_03.c fs.o disk.o
+	$(CC) $(CFLAGS) -o basic_fs_03.run basic_fs_03.c fs.o disk.o
 
 basic_fs_04: 
-	gcc -o basic_fs_04.run basic_fs_04.c fs.o disk.o
+	$(CC) $(CFLAGS) -o basic_fs_04.run basic_fs_04.c fs.o disk.o
 
 basic_fs_05: 
-	gcc -o basic_fs_05.run basic_fs_05.c fs.o disk.o
+	$(CC) $(CFLAGS) -o basic_fs_05.run basic_fs_05.c fs.o disk.o
 
 disk.o:
 	gcc -c disk.c
