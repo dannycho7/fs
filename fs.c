@@ -166,6 +166,7 @@ int fs_delete(char* name) {
 		if (fildes_list[i].valid == 0 && strcmp(fildes_list[i].name, name) == 0)
 			return -1;
 	}
+	root_dir.files[file_i].valid = -1;
 	if (root_dir.files[file_i].size == 0)
 		return 0;
 	int curr_block = root_dir.files[file_i].data_block_i;
