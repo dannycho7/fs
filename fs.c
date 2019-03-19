@@ -3,45 +3,14 @@
 #include <string.h>
 #include "disk.h"
 #include "fs.h"
-#define DATA_BLOCKS 4096
-#define FILE_MAX 64
-#define FILE_NAME_MAX 15
-#define NFILE_DESCRIPTOR_MAX 32
+#include "fs_constants.h"
+#include "fs_types.h"
 #define get_nblocks(obj) (int) ceil((double)(sizeof(obj))/BLOCK_SIZE)
 
-static struct SuperBlock {
-	int fat_start;
-	int root_dir_start;
-	int data_block_start;
-} sblock;
-/*
- * fat[i] = {
- * -1 if data block i unallocated, 
- * x in [0, DATA_BLOCKS) if data block i allocated and is not eof			 
- * DATA_BLOCKS if data block i allocated and is eof
- * }
- */
-static int fat[DATA_BLOCKS];
-
-struct FileMetadata {
-	char name[FILE_NAME_MAX+1];
-	int data_block_i; // index of first data block
-	int size;
-	int valid; // -1 if invalid and 0 if valid
-};
-
-struct Directory {
-	struct FileMetadata files[FILE_MAX];
-};
-
-static struct Directory root_dir;
-
-struct FD_Entry {
-	char name[FILE_NAME_MAX+1];
-	int offset;
-	int valid; // -1 if invalid and 0 if valid
-};
-static struct FD_Entry fildes_arr[NFILE_DESCRIPTOR_MAX];
+static SuperBlock sblock;
+static FAT fat;
+static Directory root_dir;
+static FileDescriptorList fildes_list;
 
 static int min(int a, int b) { return a <= b ? a : b; }
 static int max(int a, int b) { return a >= b ? a : b; }
@@ -95,14 +64,14 @@ static int read_metadata(int block_start, char* buf, size_t size) {
 int make_fs(char* disk_name) {
 	if (make_disk(disk_name) == -1)
 		return -1;
-	struct SuperBlock fs_sblock;
+	SuperBlock fs_sblock;
 	fs_sblock.fat_start = get_nblocks(fs_sblock);
 	int fs_fat[DATA_BLOCKS];
 	for (int i = 0; i < DATA_BLOCKS; i++) {
 		fs_fat[i] = -1;
 	}
 	fs_sblock.root_dir_start = fs_sblock.fat_start + get_nblocks(fs_fat);
-	struct Directory fs_root_dir;
+	Directory fs_root_dir;
 	for (int i = 0; i < FILE_MAX; i++) {
 		fs_root_dir.files[i].valid = -1;
 	}
@@ -124,7 +93,7 @@ int mount_fs(char* disk_name) {
 		read_metadata(sblock.root_dir_start, (char*) (&root_dir), sizeof(root_dir)) != sizeof(root_dir))
 		return -1;
 	for (int i = 0; i < NFILE_DESCRIPTOR_MAX; i++)
-		fildes_arr[i].valid = -1;
+		fildes_list[i].valid = -1;
 	return 0;
 }
 
@@ -139,10 +108,10 @@ int umount_fs(char* disk_name) {
 
 int fs_open(char* name) {
 	for (int i = 0; i < NFILE_DESCRIPTOR_MAX; i++) {
-		if (fildes_arr[i].valid == -1) {
-			strcpy(fildes_arr[i].name, name);
-			fildes_arr[i].offset = 0;
-			fildes_arr[i].valid = 0;
+		if (fildes_list[i].valid == -1) {
+			strcpy(fildes_list[i].name, name);
+			fildes_list[i].offset = 0;
+			fildes_list[i].valid = 0;
 			return i;
 		}
 	}
@@ -150,9 +119,9 @@ int fs_open(char* name) {
 }
 
 int fs_close(int fildes) {
-	if (fildes_arr[fildes].valid == -1)
+	if (fildes_list[fildes].valid == -1)
 		return -1;
-	fildes_arr[fildes].valid = -1;
+	fildes_list[fildes].valid = -1;
 	return 0;
 }
 
@@ -193,7 +162,7 @@ int fs_delete(char* name) {
 	if (file_i == -1)
 		return -1;
 	for (int i = 0; i < NFILE_DESCRIPTOR_MAX; i++) {
-		if (fildes_arr[i].valid == 0 && strcmp(fildes_arr[i].name, name) == 0)
+		if (fildes_list[i].valid == 0 && strcmp(fildes_list[i].name, name) == 0)
 			return -1;
 	}
 	if (root_dir.files[file_i].size == 0)
@@ -236,8 +205,8 @@ static int fat_next_alloc(int block_i) {
 	return free_data_block_i + sblock.data_block_start;
 }
 
-static int fildes_get_block_i(int fildes, struct FileMetadata fm) {
-	int offset = fildes_arr[fildes].offset;
+static int fildes_get_block_i(int fildes, FileMetadata fm) {
+	int offset = fildes_list[fildes].offset;
 	if (fs_get_filesize(fildes) == 0)
 		return -1;
 	int block_i = fm.data_block_i + sblock.data_block_start;
@@ -252,19 +221,19 @@ static int fildes_get_block_i(int fildes, struct FileMetadata fm) {
 }
 
 int fs_read(int fildes, void* buf, size_t nbyte) {
-	if (fildes_arr[fildes].valid == -1)
+	if (fildes_list[fildes].valid == -1)
 		return -1;
-	struct FileMetadata fm = root_dir.files[fs_find_file(fildes_arr[fildes].name)];
-	if (fildes_arr[fildes].offset >= fs_get_filesize(fildes))
+	FileMetadata fm = root_dir.files[fs_find_file(fildes_list[fildes].name)];
+	if (fildes_list[fildes].offset >= fs_get_filesize(fildes))
 		return 0;
-	size_t extra_to_read = fildes_arr[fildes].offset % BLOCK_SIZE;
-	size_t bytes_to_read = min(nbyte, fm.size - fildes_arr[fildes].offset) + extra_to_read;
+	size_t extra_to_read = fildes_list[fildes].offset % BLOCK_SIZE;
+	size_t bytes_to_read = min(nbyte, fm.size - fildes_list[fildes].offset) + extra_to_read;
 	void* tmp_buf = malloc(bytes_to_read);
 	int bytes_read = batch_block_read(fildes_get_block_i(fildes, fm), tmp_buf, bytes_to_read, fat_next);
 	bytes_read -= extra_to_read;
 	memcpy(buf, tmp_buf + extra_to_read, bytes_read);
 	free(tmp_buf);
-	fildes_arr[fildes].offset += bytes_read;
+	fildes_list[fildes].offset += bytes_read;
 	return bytes_read;
 }
 
@@ -283,14 +252,14 @@ static int get_nblock_size(int file_i) {
 }
 
 int fs_write(int fildes, void* buf, size_t nbyte) {
-	if (fildes_arr[fildes].valid == -1)
+	if (fildes_list[fildes].valid == -1)
 		return -1;
 	if (nbyte == 0)
 		return 0;
-	size_t extra_to_write = fildes_arr[fildes].offset % BLOCK_SIZE;
+	size_t extra_to_write = fildes_list[fildes].offset % BLOCK_SIZE;
 	size_t bytes_to_write = nbyte + extra_to_write;
 
-	int file_i = fs_find_file(fildes_arr[fildes].name);
+	int file_i = fs_find_file(fildes_list[fildes].name);
 	int block_i;
 	if (fs_get_filesize(fildes) == 0) {
 		block_i = fat_next_alloc(-1);
@@ -309,28 +278,28 @@ int fs_write(int fildes, void* buf, size_t nbyte) {
 	int bytes_written = batch_block_write(block_i, tmp_buf, bytes_to_write, fat_next_alloc);
 	bytes_written -= extra_to_write;
 	free(tmp_buf);
-	fildes_arr[fildes].offset += bytes_written;
-	root_dir.files[file_i].size += fildes_arr[fildes].offset;
+	fildes_list[fildes].offset += bytes_written;
+	root_dir.files[file_i].size += fildes_list[fildes].offset;
 	return bytes_written;
 }
 
 int fs_get_filesize(int fildes) {
-	if (fildes_arr[fildes].valid == -1)
+	if (fildes_list[fildes].valid == -1)
 		return -1;
-	return root_dir.files[fs_find_file(fildes_arr[fildes].name)].size;
+	return root_dir.files[fs_find_file(fildes_list[fildes].name)].size;
 }
 
 int fs_lseek(int fildes, off_t offset) {
-	if (fildes_arr[fildes].valid == -1 || offset > fs_get_filesize(fildes) || offset < 0)
+	if (fildes_list[fildes].valid == -1 || offset > fs_get_filesize(fildes) || offset < 0)
 		return -1;
-	fildes_arr[fildes].offset = offset;
+	fildes_list[fildes].offset = offset;
 	return 0;
 }
 
 int fs_truncate(int fildes, off_t length) {
-	if (fildes_arr[fildes].valid == -1 || length > fs_get_filesize(fildes) || length < 0)
+	if (fildes_list[fildes].valid == -1 || length > fs_get_filesize(fildes) || length < 0)
 		return -1;
-	int file_i = fs_find_file(fildes_arr[fildes].name);
+	int file_i = fs_find_file(fildes_list[fildes].name);
 	int del_block_offset = get_nblocks(length) + 1;
 	int curr_block_offset = 1;
 	int curr_block = root_dir.files[file_i].data_block_i;
