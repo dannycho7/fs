@@ -263,7 +263,8 @@ int fs_write(int fildes, void* buf, size_t nbyte) {
 	int file_i = fs_find_file(fildes_list[fildes].name);
 	int block_i;
 	if (fs_get_filesize(fildes) == 0) {
-		block_i = fat_next_alloc(-1);
+		if ((block_i = fat_next_alloc(-1)) == -1)
+			return 0; // no more memory for initial block
 		root_dir.files[file_i].data_block_i = block_i - sblock.data_block_start;
 	} else if ((block_i = fildes_get_block_i(fildes, root_dir.files[file_i])) == -1) {
 		root_dir.files[file_i].size = get_nblock_size(file_i);
