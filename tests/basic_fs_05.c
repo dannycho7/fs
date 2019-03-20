@@ -7,7 +7,7 @@
 
 int main() {
 	int fildes = 0;
-	int fd = 0;
+	int fd = 0, fd2 = 0;
 	int ret = 0;
 	char disk_name[] = "fs3";
 	char file_name[] = "file1";
@@ -72,8 +72,6 @@ int main() {
 	// make sure what we read matches with what we wrote
 	ret = strncmp(data,buffer,len);
 	if(ret != 0) {
-		//printf("Expected: %s\n", data);
-		//printf("Returned: %s\n", buffer);
 		printf("ERROR: data read does not match data written!\n");
 	}
 
@@ -107,8 +105,6 @@ int main() {
 		printf("ERROR: fs_open failed\n");
 	}
 
-
-
 	ret = fs_truncate(fildes, MAX_FILE_SIZE - BLOCK_SIZE);
 	if (ret != 0) {
 		printf("ERROR: fs_truncate failed\n");
@@ -126,8 +122,6 @@ int main() {
 	// make sure what we read matches with what we wrote
 	ret = strncmp(data,buffer,len - BLOCK_SIZE);
 	if(ret != 0) {
-		//printf("Expected: %s\n", data);
-		//printf("Returned: %s\n", buffer);
 		printf("ERROR: data read does not match data written!\n");
 	}
 
@@ -166,6 +160,49 @@ int main() {
 		printf("Expected: %s\n\n", message);
 		printf("Returned: %s\n", buffer2);
 		printf("ERROR: data read does not match data written!\n");
+	}
+
+	fd2 = fs_open(file_name2);
+	if (fd2 < 0) {
+		printf("ERROR: fs_open failed\n");
+	}
+
+	ret = fs_truncate(fd2, 0);
+	if (ret != 0) {
+		printf("ERROR: fs_truncate failed\n");
+	}
+
+	ret = fs_get_filesize(fd);
+	if (ret != 0) {
+		printf("ERROR: filesize is incorrect after truncation\n");
+	}
+
+	ret = fs_read(fd, buffer2, len2);
+	if (ret != 0) {
+		printf("ERROR: read bytes eventhough it shouldn't have\n");
+	}
+
+	ret = fs_read(fd2, buffer2, len2);
+	if (ret != 0) {
+		printf("ERROR: read bytes eventhough it shouldn't have\n");
+	}
+
+	ret = fs_write(fd, "abcd", 4);
+	if (ret != 0) {
+		printf("Wrote bytes when it shouldn't have\n");
+	}
+
+	ret = fs_read(fd2, buffer2, len2);
+	if (ret != BLOCK_SIZE) {
+		printf("Expected: %d\n", BLOCK_SIZE);
+		printf("Returned: %d\n", ret);
+		printf("ERROR: Didn't read the proper number of bytes\n");
+	}
+
+	// close file
+	ret = fs_close(fd2);
+	if(ret != 0) {
+		printf("ERROR: fs_close failed\n");
 	}
 
 	// close file

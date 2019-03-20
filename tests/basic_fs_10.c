@@ -5,8 +5,8 @@
 
 int main() {
 	int ret = 0;
-	char disk_name[] = "fs2";
-	char file_name[] = "file2";
+	char disk_name[] = "fs1";
+	char file_name[] = "file1";
 
 	// Mount filesystem from basic_fs_02.c
 	ret = mount_fs(disk_name);
@@ -21,7 +21,7 @@ int main() {
 	}
 
 	// create another file (there should be one from basic_fs_02.c)
-	char file2[] = "file3";
+	char file2[] = "file2";
 	ret = fs_create(file2);
 	if(ret != 0) {
 		printf("ERROR: fs_create failed\n");
@@ -32,7 +32,6 @@ int main() {
 		printf("ERROR: fs_open failed\n");
 	}
 
-
 	// transfer contents of file2 to file3
 	int len = fs_get_filesize(fildes_file1);
 	char *buffer = (char*)malloc(len*sizeof(char));
@@ -41,16 +40,18 @@ int main() {
 	if(ret != len) {
 		printf("ERROR: fs_read failed to read correct number of bytes\n");
 	}
-	
-	ret = fs_write(fildes_file2,buffer,len);
-	if(ret != len) {
-		printf("ERROR: fs_write failed to write correct number of bytes\n");
-	}
 
-	// truncate file1
+    // truncate file1
 	ret = fs_truncate(fildes_file1,0);
 	if(ret != 0) {
 		printf("ERROR: fs_truncate failed\n");
+	}
+
+	ret = fs_write(fildes_file2,buffer,len);
+
+    printf("Ret from fs_write is %d\n", ret);    
+	if(ret != len) {
+		printf("ERROR: fs_write failed to write correct number of bytes\n");
 	}
 
 	// make sure file sizes are correct
@@ -58,8 +59,6 @@ int main() {
 	int len2 = fs_get_filesize(fildes_file2);
 
 	if(len1 != 0) {
-		printf("Expected: %d\n", 0);
-		printf("Returned: %d\n", len1);
 		printf("ERROR: file1 has incorrect size\n");
 	}
 	if(len2 != len) {
@@ -68,6 +67,10 @@ int main() {
 
 	ret = fs_close(fildes_file1);
 	ret = fs_close(fildes_file2);
+
+    // Added to test cases: Delete both files
+    ret = fs_delete(file2);
+    ret = fs_delete(file_name);
 	ret = umount_fs(disk_name);
 
 	// done!
