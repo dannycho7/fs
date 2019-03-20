@@ -207,11 +207,9 @@ static int fat_next_alloc(int block_i) {
 	return free_data_block_i + sblock.data_block_start;
 }
 
-static int fildes_get_block_i(int fildes, FileMetadata fm) {
+static int fildes_get_block_i(int fildes, int data_block_i) {
 	int offset = fildes_list[fildes].offset;
-	if (fs_get_filesize(fildes) == 0)
-		return -1;
-	int block_i = fm.data_block_i + sblock.data_block_start;
+	int block_i = data_block_i + sblock.data_block_start;
 	while (offset >= BLOCK_SIZE) {
 		if (block_i == -1)
 			return -1;
@@ -230,7 +228,7 @@ int fs_read(int fildes, void* buf, size_t nbyte) {
 	size_t extra_to_read = fildes_list[fildes].offset % BLOCK_SIZE;
 	size_t bytes_to_read = min(nbyte, fm.size - fildes_list[fildes].offset) + extra_to_read;
 	void* tmp_buf = malloc(bytes_to_read);
-	int bytes_read = batch_block_read(fildes_get_block_i(fildes, fm), tmp_buf, bytes_to_read, fat_next);
+	int bytes_read = batch_block_read(fildes_get_block_i(fildes, fm.data_block_i), tmp_buf, bytes_to_read, fat_next);
 	bytes_read -= extra_to_read;
 	memcpy(buf, tmp_buf + extra_to_read, bytes_read);
 	free(tmp_buf);
@@ -266,7 +264,8 @@ int fs_write(int fildes, void* buf, size_t nbyte) {
 		if ((block_i = fat_next_alloc(-1)) == -1)
 			return 0; // no more memory for initial block
 		root_dir.files[file_i].data_block_i = block_i - sblock.data_block_start;
-	} else if ((block_i = fildes_get_block_i(fildes, root_dir.files[file_i])) == -1) {
+	}
+	if ((block_i = fildes_get_block_i(fildes, root_dir.files[file_i].data_block_i)) == -1) {
 		root_dir.files[file_i].size = get_nblock_size(file_i);
 		return 0; // there was not enough memory for the holes
 	}
