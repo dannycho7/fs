@@ -107,7 +107,18 @@ int umount_fs(char* disk_name) {
 	return 0;
 }
 
+static int fs_find_file(char* name) {
+	for (int i = 0; i < FILE_MAX; i++) {
+		if (root_dir.files[i].valid == 0 && strcmp(root_dir.files[i].name, name) == 0) {
+			return i;
+		}
+	}
+	return -1;
+}
+
 int fs_open(char* name) {
+	if (fs_find_file(name) == -1)
+		return -1;
 	for (int i = 0; i < NFILE_DESCRIPTOR_MAX; i++) {
 		if (fildes_list[i].valid == -1) {
 			strcpy(fildes_list[i].name, name);
@@ -124,15 +135,6 @@ int fs_close(int fildes) {
 		return -1;
 	fildes_list[fildes].valid = -1;
 	return 0;
-}
-
-static int fs_find_file(char* name) {
-	for (int i = 0; i < FILE_MAX; i++) {
-		if (root_dir.files[i].valid == 0 && strcmp(root_dir.files[i].name, name) == 0) {
-			return i;
-		}
-	}
-	return -1;
 }
 
 // return: -1 if invalid length and 0 if valid
