@@ -192,6 +192,11 @@ int main() {
 		printf("Wrote bytes when it shouldn't have\n");
 	}
 
+	ret = fs_get_filesize(fd);
+	if (ret != BLOCK_SIZE) {
+		printf("ERROR: filesize was not increased by holes in fs_write.\n");
+	}
+
 	ret = fs_read(fd2, buffer2, len2);
 	if (ret != BLOCK_SIZE) {
 		printf("Expected: %d\n", BLOCK_SIZE);

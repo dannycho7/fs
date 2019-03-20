@@ -242,7 +242,7 @@ static int get_nblock_size(int file_i) {
 	if (root_dir.files[file_i].valid == -1)
 		return 0;
 	int curr_block = root_dir.files[file_i].data_block_i;
-	int nblocks = 1;
+	int nblocks = 0;
 	while (curr_block != DATA_BLOCKS) {
 		nblocks++;
 		curr_block = fat[curr_block];
